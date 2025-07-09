@@ -393,7 +393,7 @@ with tab_dev:
         ######
         # Creating a OECD df
         df_contribution_oecd = df_contribution[df_contribution['Entity'].isin(oecd_list)]
-
+        df_contribution_oecd = df_contribution_oecd[(df_contribution_oecd['Year'] >= dev_year_range[0]) & (df_contribution_oecd['Year'] <= dev_year_range[1])]
         # Groupby to get top 10
         group = df_contribution_oecd.groupby('Entity')['Share of contribution to global warming'].mean().sort_values(ascending=False)
 
