@@ -353,6 +353,7 @@ with tab_dev:
 
     # Filtering dataset
     filt_contribution = df_contribution[(df_contribution['Entity'].isin(['OECD (Jones et al.)', 'Least developed countries (Jones et al.)']))]
+    filt_contribution = filt_contribution[(filt_contribution['Year'] >= dev_year_range[0]) & (filt_contribution['Year'] <= dev_year_range[1])]
 
     # Creating interactive brush element
     brush = alt.selection_interval(encodings=['x'])
