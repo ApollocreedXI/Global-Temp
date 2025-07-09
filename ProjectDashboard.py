@@ -11,6 +11,8 @@ st.set_page_config(page_title="Global Temperature Dashboard",
                    layout="wide")
 st.title("🌍 Global Temperature Story  🌡️")
 
+
+
 # ─── Data load & reshape ───────────────────────────────────
 df = pd.read_csv(
     "Indicator_3_1_Climate_Indicators_Annual_Mean_Global_Surface_Temperature_577579683071085080.csv"
@@ -25,7 +27,7 @@ df_long = df.melt(
 )
 df_long["Year"] = df_long["Year"].astype(int)
 
-df2 = pd.read_csv("global-warming-by-gas-and-source.csv")
+
 
 # ─── Development Status Mapping ────────────────────────────
 developed_iso3 = ["USA", "CAN", "GBR", "DEU", "FRA", "JPN",
@@ -33,6 +35,22 @@ developed_iso3 = ["USA", "CAN", "GBR", "DEU", "FRA", "JPN",
 df_long["DevStatus"] = df_long["ISO3"].apply(
     lambda x: "Developed" if x in developed_iso3 else "Developing"
 )
+######################
+
+# Adding second dataframestre
+df2 = pd.read_csv("global-warming-by-gas-and-source.csv")
+
+# # Testing new dataset for consistancy of developing and developed nations
+# df_long = pd.read_csv("temp_change_df (1).csv")
+# df_long.rename(columns={'DevStaus':'DevStatus'},inplace=True)
+
+# Loading monthly data & contribution dataset
+df_monthly = pd.read_csv("df_monthly_long.csv")
+df_monthly['Date'] = pd.to_datetime(df_monthly[['Year', 'Month']].assign(DAY=1)) # Adding a date column for better plotting
+df_monthly.rename(columns={'Mean_Temp':'Monthly Average Temperature Change (°C)',}, inplace=True)
+
+# Loading contributions dataset
+df_contribution = pd.read_csv("contributions-global-temp-change.csv")
 
 # ─── Lists for filters ─────────────────────────────────────
 all_countries = ["All"] + sorted(df_long["Country"].unique())
@@ -84,6 +102,10 @@ with tab_charts:
         scatter_src = df_long[df_long["Country"].isin(sample_countries)]
     else:
         scatter_src = filtered_chart
+    
+    # Create brush feature for scatter plot
+    brush = alt.selection_interval(encodings=['x'])
+
 
     scatter = (
         alt.Chart(scatter_src)
@@ -98,14 +120,32 @@ with tab_charts:
                             legend=alt.Legend(title="Temp Change (°C)")),
             opacity=alt.condition(sel_country, alt.value(1), alt.value(0.15)),
             tooltip=["Country", "Year", "TempChange"]
-        )
-        .transform_filter(sel_country)
+        ).add_params(brush, sel_country)
+        #.transform_filter(sel_country)
         .properties(
             width=750, height=400,
             title=f"Temperature Change Over Time – "
                   f"{chart_country if chart_country!='All' else 'All Countries'}"
         )
     )
+    # Plot monthly temperature change and link to scatter plot via selection interval function
+    if chart_country == "All":
+        df_monthly_filtered = df_monthly[df_monthly["Entity"] == 'World']
+    else:
+        df_monthly_filtered = df_monthly[df_monthly["Entity"] == chart_country]
+    
+    monthly_line = alt.Chart(df_monthly_filtered).mark_line().encode(
+        x=alt.X("Month_named:N", axis=alt.Axis(labelAngle=0)),
+        y="Monthly Average Temperature Change (°C):Q",
+        color=alt.Color("Country:N", legend=None),
+        opacity=alt.condition(brush, alt.value(1), alt.value(0.15)),
+        tooltip=["Year", "Monthly Average Temperature Change (°C)"]
+    ).properties(
+        width=750, height=200,
+        title=f"Monthly Average Temperature Change – {chart_country}"
+    )
+    # Display the line chart below the scatter plot
+    st.altair_chart(monthly_line, use_container_width=True)
 
     # 2️⃣ Bar plot: countries with decreasing variability
     stats_base = df_long.copy()
@@ -145,6 +185,8 @@ with tab_charts:
         .properties(width=750, height=600,
                     title="Countries with Decreasing Temperature Variability")
     )
+    
+
 
     # Stacked area chart for global warming by gas and source (world)
     # world = df2[df2["Code"] == "OWID_WRL"].copy()
@@ -244,7 +286,7 @@ with tab_dev:
         .mark_bar()
         .encode(
             x=alt.X("YearGroup:O", title="5‑Year Group"),
-            y=alt.Y("TempChange:Q", title="Avg Temp Change (°C)"),
+            y=alt.Y("TempChange:Q", title="Avg Temp Change (°C)", scale=alt.Scale(zero=True)),
             color=alt.Color("DevStatus:N",
                             scale=alt.Scale(domain=["Developed", "Developing"],
                                             range=["#2ca02c", "#ff7f0e"]),
