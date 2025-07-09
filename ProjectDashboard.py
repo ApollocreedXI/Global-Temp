@@ -80,16 +80,35 @@ with st.sidebar.expander("🌐 DevStatus Filters", expanded=False):
                                key="dev_year_range")
 
 # ── Data after filters ─────────────────────────────────────
-filtered_chart = df_long.copy()
+
+# df_long year filter
+filtered_chart = df_long[
+    (df_long["Year"] >= dev_year_range[0]) &
+    (df_long["Year"] <= dev_year_range[1])
+].copy()
+
+# Dropdown filters
 if chart_country != "All":
     filtered_chart = filtered_chart[filtered_chart["Country"] == chart_country]
 if chart_year != "All":
     filtered_chart = filtered_chart[filtered_chart["Year"] == int(chart_year)]
 
-filtered_dev = df_long[
-    (df_long["Year"] >= dev_year_range[0]) &
-    (df_long["Year"] <= dev_year_range[1])
+# Monthly Average Temperature Change 'Year' Filter
+filtered_chart_monthly = df_monthly[
+    (df_monthly["Year"] >= dev_year_range[0]) &
+    (df_monthly["Year"] <= dev_year_range[1])
 ].copy()
+
+# Dropdown filters - Monthly Average Temperature Change
+if chart_year != "All":
+    filtered_chart_monthly = filtered_chart_monthly[filtered_chart_monthly["Year"] == int(chart_year)]
+
+# Gas 'Year' Filter
+df2 = df2[
+    (df2["Year"] >= dev_year_range[0]) &
+    (df2["Year"] <= dev_year_range[1])
+].copy()
+
 
 # ─── Tabs layout ───────────────────────────────────────────
 tab_charts, tab_dev, tab_data = st.tabs(
@@ -107,8 +126,8 @@ with tab_charts:
 
     # 1️⃣ Scatter plot
     if chart_country == "All":
-        sample_countries = df_long["Country"].unique()[:10]
-        scatter_src = df_long[df_long["Country"].isin(sample_countries)]
+        sample_countries = filtered_chart["Country"].unique()[:10]
+        scatter_src = filtered_chart[filtered_chart["Country"].isin(sample_countries)]
     else:
         scatter_src = filtered_chart
 
@@ -134,11 +153,12 @@ with tab_charts:
         )
     )
     # Plot monthly temperature change
+    
     if chart_country == "All":
-        df_monthly_filtered = df_monthly[df_monthly["Entity"] == 'World']
+        df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == 'World']
         name = "World"
     else:
-        df_monthly_filtered = df_monthly[df_monthly["Entity"] == chart_country]
+        df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == chart_country]
         name = chart_country
 
     # Creating a selection for the monthly line chart
@@ -166,42 +186,44 @@ with tab_charts:
 
     # 2️⃣ Bar plot: countries with decreasing variability
     stats_base = df_long.copy()
-    if chart_country != "All":
-        stats_base = stats_base[stats_base["Country"] == chart_country]
+    if chart_country == "All":
+        stats_base = df_long.copy()
 
-    early = (stats_base[stats_base["Year"] <= 1992]
-             .groupby("Country")["TempChange"].std()
-             .reset_index(name="Std_Early"))
-    late  = (stats_base[stats_base["Year"] >= 1993]
-             .groupby("Country")["TempChange"].std()
-             .reset_index(name="Std_Late"))
+        early = (stats_base[stats_base["Year"] <= 1992]
+                .groupby("Country")["TempChange"].std()
+                .reset_index(name="Std_Early"))
+        late  = (stats_base[stats_base["Year"] >= 1993]
+                .groupby("Country")["TempChange"].std()
+                .reset_index(name="Std_Late"))
 
-    std_comp = early.merge(late, on="Country")
-    std_comp["Delta_Std"] = std_comp["Std_Late"] - std_comp["Std_Early"]
-    decreasing = std_comp[std_comp["Delta_Std"] < 0].sort_values("Delta_Std")
-    xmin = decreasing["Delta_Std"].min() if not decreasing.empty else -0.1
+        std_comp = early.merge(late, on="Country")
+        std_comp["Delta_Std"] = std_comp["Std_Late"] - std_comp["Std_Early"]
+        decreasing = std_comp[std_comp["Delta_Std"] < 0].sort_values("Delta_Std")
+        xmin = decreasing["Delta_Std"].min() if not decreasing.empty else -0.1
 
-    bar = (
-        alt.Chart(decreasing)
-        .mark_bar()
-        .encode(
-            x=alt.X("Delta_Std:Q",
-                    scale=alt.Scale(domain=[0, xmin]),
-                    title="Δ Std Dev (1993–2024 – 1961–1992)"),
-            y=alt.Y("Country:N", sort="-x"),
-            color=alt.Color("Delta_Std:Q",
-                            scale=alt.Scale(scheme="redblue",
-                                            reverse=True,
-                                            domainMid=0),
-                            legend=alt.Legend(title="Δ Std Dev")),
-            opacity=alt.condition(sel_country, alt.value(1), alt.value(0.4)),
-            stroke=alt.condition(sel_country, alt.value("white"), alt.value(None)),
-            tooltip=["Country", "Std_Early", "Std_Late", "Delta_Std"]
+        bar = (
+            alt.Chart(decreasing)
+            .mark_bar()
+            .encode(
+                x=alt.X("Delta_Std:Q",
+                        scale=alt.Scale(domain=[0, xmin]),
+                        title="Δ Std Dev (1993–2024 – 1961–1992)"),
+                y=alt.Y("Country:N", sort="-x"),
+                color=alt.Color("Delta_Std:Q",
+                                scale=alt.Scale(scheme="redblue",
+                                                reverse=True,
+                                                domainMid=0),
+                                legend=alt.Legend(title="Δ Std Dev")),
+                opacity=alt.condition(sel_country, alt.value(1), alt.value(0.4)),
+                stroke=alt.condition(sel_country, alt.value("white"), alt.value(None)),
+                tooltip=["Country", "Std_Early", "Std_Late", "Delta_Std"]
+            )
+            .add_params(sel_country)
+            .properties(width=750, height=600,
+                        title="Countries with Decreasing Temperature Variability")
         )
-        .add_params(sel_country)
-        .properties(width=750, height=600,
-                    title="Countries with Decreasing Temperature Variability")
-    )
+    else:
+        bar=None
     
 
 
@@ -247,15 +269,23 @@ with tab_charts:
         x="Year:O",
         y="Temp Change:Q",
         color="series:N",
-        order="series:N"
+        order="series:N",
+        tooltip=['Year:O','Temp Change:Q']
     ).properties(title=f"Warming by Gas and Source ({chart_country})")
 
     
-    
+    # Plotting the charts
     st.altair_chart(
-        alt.vconcat(scatter, monthly_line,bar, area).resolve_scale(color="independent"),
+        alt.vconcat(scatter, monthly_line).resolve_scale(color="independent"),
         use_container_width=True
     )
+    # Plotting bar by itself as it can be of 'None' value raising an exception
+    if bar!= None:
+        st.altair_chart(bar,use_container_width=True)
+    
+    # Plotting area chart
+    st.altair_chart(area,use_container_width=True)               
+                    
 
 # ───────────────────────────────────────────────────────────
 # 🌐 DEVELOPED vs DEVELOPING TAB
@@ -267,7 +297,7 @@ with tab_dev:
     dev_sel = alt.selection_multi(fields=["DevStatus"], bind="legend")
 
     # 1️⃣ Line chart (yearly averages)
-    dev_avg = (filtered_dev
+    dev_avg = (df_long
                .groupby(["Year", "DevStatus"])["TempChange"]
                .mean()
                .reset_index())
@@ -294,8 +324,8 @@ with tab_dev:
     #st.altair_chart(line_chart, use_container_width=True)
 
     # 2️⃣ Bar chart (5‑year grouped averages)
-    filtered_dev["YearGroup"] = (filtered_dev["Year"] // 5) * 5
-    dev_bar = (filtered_dev
+    df_long["YearGroup"] = (df_long["Year"] // 5) * 5
+    dev_bar = (df_long
                .groupby(["YearGroup", "DevStatus"])["TempChange"]
                .mean()
                .reset_index())
@@ -353,7 +383,7 @@ with tab_dev:
 
     # background + selected
     chart = Background + highlight
-    st.subheader("Comparison of share of contribution to global warming - Developing versus Developed")
+    st.subheader("Comparison of Share of Contribution to Global Warming - Developing Versus Developed")
     st.altair_chart(chart, use_container_width=True)
 
 
@@ -369,3 +399,11 @@ with tab_data:
 with tab_data:
     st.subheader("Data Table (Global Warming by Gas and Source)")
     st.dataframe(gas_df)
+
+with tab_data:
+    st.subheader("Data Table (Monthly Average Surface Temperatures by Year)")
+    st.dataframe(df_monthly_filtered)
+
+with tab_data:
+    st.subheader("Data Table (Contributions to Global Climate Change)")
+    st.dataframe(df_contribution)
