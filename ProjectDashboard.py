@@ -162,7 +162,7 @@ with tab_charts:
         name = chart_country
 
     # Creating a selection for the monthly line chart
-    sel_year = alt.selection_point(fields=["Year"], empty="all")
+    sel_year = alt.selection_point(fields=["Year"], empty=False)
     
     # Creating a new column to calculate the monthly average temperature change for each country
     yearly_averages = df_monthly_filtered.groupby(['Year','Entity'])["Monthly Average Temperature Change (°C)"].agg('mean').reset_index().rename(columns={"Monthly Average Temperature Change (°C)": "Yearly Average Temperature Change (°C)"})
@@ -176,7 +176,7 @@ with tab_charts:
         y="Monthly Average Temperature Change (°C):Q",
         color=alt.Color("Yearly Average Temperature Change (°C)",scale=alt.Scale(scheme='reds'), legend=alt.Legend(title="Hotter Years")),
 
-        opacity=alt.condition(sel_year, alt.value(1), alt.value(0.15)),
+        opacity=alt.condition(sel_year, alt.value(1), alt.value(0.20)),
         tooltip=["Year", "Monthly Average Temperature Change (°C)"]
     ).properties(
         width=750, height=400,
@@ -294,7 +294,7 @@ with tab_dev:
     st.subheader("Average Temperature Change: Developed vs Developing")
 
     # 🔄 Interactive selection on DevStatus
-    dev_sel = alt.selection_multi(fields=["DevStatus"], bind="legend")
+    dev_sel = alt.selection_point(fields=["DevStatus"])
 
     # 1️⃣ Line chart (yearly averages)
     dev_avg = (df_long
@@ -354,6 +354,7 @@ with tab_dev:
     # Filtering dataset
     filt_contribution = df_contribution[(df_contribution['Entity'].isin(['OECD (Jones et al.)', 'Least developed countries (Jones et al.)']))]
 
+    # Creating interactive brush element
     brush = alt.selection_interval(encodings=['x'])
     conditonal = alt.condition(brush, alt.value(1.0),alt.value(.25))
         
@@ -379,8 +380,7 @@ with tab_dev:
         chart = Background + highlight
         st.subheader("Comparison of Share of Contribution to Global Warming - Developing Versus Developed")
         st.altair_chart(chart, use_container_width=True)
-    elif radio =='Detailed':
-        
+    elif radio =='Detailed':       
         # Creating line chart of individual OECD Nations
         oecd_list = [
         "Australia", "Austria", "Belgium", "Canada", "Chile", "Colombia", "Costa Rica",
@@ -389,7 +389,7 @@ with tab_dev:
         "Luxembourg", "Mexico", "Netherlands", "New Zealand", "Norway", "Poland", "Portugal",
         "Slovakia", "Slovenia", "South Korea", "Spain", "Sweden", "Switzerland", "Turkey",
         "United Kingdom", "United States"]
-
+        ######
         # Creating a OECD df
         df_contribution_oecd = df_contribution[df_contribution['Entity'].isin(oecd_list)]
 
@@ -405,28 +405,48 @@ with tab_dev:
         # Filtering the df again
         df_contribution_oecd = df_contribution_oecd[df_contribution_oecd['Entity'].isin(top_10_countries_list)]
 
-        # Creating a interactive element
-        selection_interact = alt.selection_point()
-      
+        #######
+        # Estabilshing new interactions
+        brush_new = alt.selection_interval(encodings=['x'],resolve='global')
+        conditonal = alt.condition(brush_new, alt.value(1.0),alt.value(0.25)) 
 
         # Creating temporal heat map
+        # base = alt.Chart(df_contribution_oecd).encode(
+        #     x=alt.X('Year:O'),,
+        #     color=alt.condition(brush_new, 'Entity:N', alt.ColorValue('gray')),
+        #     tooltip=['Entity:N', 'Share of contribution to global warming:Q', 'Year']
+        # ).add_params(brush_new)
+
+
         heatmap = alt.Chart(df_contribution_oecd).mark_rect().encode(
             x=alt.X('Year:O'),
             y=alt.Y('Entity:N', sort=top_10_countries_list),
-            color= alt.Color('Share of contribution to global warming:Q',scale=alt.Scale(scheme='reds'))
-        ).add_params(selection_interact).properties(height=400)
+            color= alt.Color('Share of contribution to global warming:Q',scale=alt.Scale(scheme='reds')),
+            opacity=alt.condition(brush_new, alt.value(1.0), alt.value(0.25)),
+        ).add_params(brush_new).properties(height=400)
         st.subheader("Comparison of Share of Contribution to Global Warming - Top 10 OECD Nations")
-        st.altair_chart(heatmap)
 
         # Creating chart
-        line_chart = alt.Chart(df_contribution_oecd).mark_line().encode(
+        background = alt.Chart(df_contribution_oecd).mark_line().encode(
+            x=alt.X('Year:O'),
+            y=alt.Y('Share of contribution to global warming:Q'),
+            #color=alt.Color('Entity:N'),
+            opacity=conditonal,
+            color=alt.condition(brush_new, 'Entity:N', alt.ColorValue('gray')),
+            tooltip=['Entity:N','Share of contribution to global warming:Q','Year']
+        ).add_params(brush_new).interactive()
+        
+        # Creating a highlight chart
+        highlight = alt.Chart(df_contribution_oecd).mark_line().encode(
             x=alt.X('Year:O'),
             y=alt.Y('Share of contribution to global warming:Q'),
             color=alt.Color('Entity:N'),
-            opacity=alt.condition(selection_interact,alt.value(1.0),alt.value(0.4)),
             tooltip=['Entity:N','Share of contribution to global warming:Q','Year']
-        ).add_params(selection_interact).interactive()
-        st.altair_chart(line_chart)
+        ).transform_filter(brush_new)
+        
+        # combining the two charts
+        chart = background + highlight
+        st.altair_chart(alt.vconcat(heatmap,chart))
 
           
 
