@@ -57,9 +57,10 @@ df_contribution = pd.read_csv("contributions-global-temp-change.csv")
 data_long_list = list(df_long["Country"].unique())
 data_contribution_list = list(df_contribution['Entity'].unique())
 df_monthly_list =list(df_monthly["Entity"].unique())
+df2_list = list(df2['Entity'].unique())
 
 # Perfoming list comprehesion
-in_all = [x for x in data_long_list if x in data_contribution_list and df_monthly_list]
+in_all = [x for x in data_long_list if x in data_contribution_list and x in df_monthly_list and x in df2_list]
 
 
 all_countries = ["All"] + sorted(in_all)
@@ -157,9 +158,11 @@ with tab_charts:
     if chart_country == "All":
         df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == 'World']
         name = "World"
+        
     else:
         df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == chart_country]
         name = chart_country
+        df_monthly_filtered['Entity'].unique()=='World'
 
     # Creating a selection for the monthly line chart
     sel_year = alt.selection_point(fields=["Year"], empty=False)
