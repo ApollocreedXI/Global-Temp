@@ -53,7 +53,16 @@ df_monthly.rename(columns={'Mean_Temp':'Monthly Average Temperature Change (°C)
 df_contribution = pd.read_csv("contributions-global-temp-change.csv")
 
 # ─── Lists for filters ─────────────────────────────────────
-all_countries = ["All"] + sorted(df_long["Country"].unique())
+# Creating a list of countries that are found across all datasets
+data_long_list = list(df_long["Country"].unique())
+data_contribution_list = list(df_contribution['Entity'].unique())
+df_monthly_list =list(df_monthly["Entity"].unique())
+
+# Perfoming list comprehesion
+in_all = [x for x in data_long_list if x in data_contribution_list and df_monthly_list]
+
+
+all_countries = ["All"] + sorted(in_all)
 all_years     = ["All"] + sorted(df_long["Year"].unique())
 year_min, year_max = int(df_long["Year"].min()), int(df_long["Year"].max())
 
@@ -102,10 +111,6 @@ with tab_charts:
         scatter_src = df_long[df_long["Country"].isin(sample_countries)]
     else:
         scatter_src = filtered_chart
-    
-    # Create brush feature for scatter plot
-    brush = alt.selection_interval(encodings=['x'])
-
 
     scatter = (
         alt.Chart(scatter_src)
@@ -120,7 +125,7 @@ with tab_charts:
                             legend=alt.Legend(title="Temp Change (°C)")),
             opacity=alt.condition(sel_country, alt.value(1), alt.value(0.15)),
             tooltip=["Country", "Year", "TempChange"]
-        ).add_params(brush, sel_country)
+        ).add_params(sel_country)
         #.transform_filter(sel_country)
         .properties(
             width=750, height=400,
@@ -128,24 +133,36 @@ with tab_charts:
                   f"{chart_country if chart_country!='All' else 'All Countries'}"
         )
     )
-    # Plot monthly temperature change and link to scatter plot via selection interval function
+    # Plot monthly temperature change
     if chart_country == "All":
         df_monthly_filtered = df_monthly[df_monthly["Entity"] == 'World']
+        name = "World"
     else:
         df_monthly_filtered = df_monthly[df_monthly["Entity"] == chart_country]
+        name = chart_country
+
+    # Creating a selection for the monthly line chart
+    sel_year = alt.selection_point(fields=["Year"], empty="all")
     
+    # Creating a new column to calculate the monthly average temperature change for each country
+    yearly_averages = df_monthly_filtered.groupby(['Year','Entity'])["Monthly Average Temperature Change (°C)"].agg('mean').reset_index().rename(columns={"Monthly Average Temperature Change (°C)": "Yearly Average Temperature Change (°C)"})
+    
+    # Merging
+    df_monthly_filtered = pd.merge(df_monthly_filtered, yearly_averages, on=['Year','Entity'], how='left')
+
     monthly_line = alt.Chart(df_monthly_filtered).mark_line().encode(
-        x=alt.X("Month_named:N", axis=alt.Axis(labelAngle=0)),
+        x=alt.X("Month_named:N", 
+        sort=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], title='Month'), #axis=alt.Axis(labelAngle=0)),
         y="Monthly Average Temperature Change (°C):Q",
-        color=alt.Color("Country:N", legend=None),
-        opacity=alt.condition(brush, alt.value(1), alt.value(0.15)),
+        color=alt.Color("Yearly Average Temperature Change (°C)",scale=alt.Scale(scheme='reds'), legend=alt.Legend(title="Hotter Years")),
+
+        opacity=alt.condition(sel_year, alt.value(1), alt.value(0.15)),
         tooltip=["Year", "Monthly Average Temperature Change (°C)"]
     ).properties(
-        width=750, height=200,
-        title=f"Monthly Average Temperature Change – {chart_country}"
-    )
-    # Display the line chart below the scatter plot
-    st.altair_chart(monthly_line, use_container_width=True)
+        width=750, height=400,
+        title=f"Monthly Average Temperature Change – {name}"
+    ).interactive().add_params(sel_year)
+
 
     # 2️⃣ Bar plot: countries with decreasing variability
     stats_base = df_long.copy()
@@ -233,8 +250,10 @@ with tab_charts:
         order="series:N"
     ).properties(title=f"Warming by Gas and Source ({chart_country})")
 
+    
+    
     st.altair_chart(
-        alt.vconcat(scatter, bar, area).resolve_scale(color="independent"),
+        alt.vconcat(scatter, monthly_line,bar, area).resolve_scale(color="independent"),
         use_container_width=True
     )
 
@@ -272,7 +291,7 @@ with tab_dev:
             width=750, height=400
         )
     )
-    st.altair_chart(line_chart, use_container_width=True)
+    #st.altair_chart(line_chart, use_container_width=True)
 
     # 2️⃣ Bar chart (5‑year grouped averages)
     filtered_dev["YearGroup"] = (filtered_dev["Year"] // 5) * 5
@@ -300,7 +319,45 @@ with tab_dev:
             width=750, height=400
         )
     )
-    st.altair_chart(bar_chart, use_container_width=True)
+    st.altair_chart(bar_chart|line_chart)#, use_container_width=True)
+
+    # Filtering dataset
+    filt_contribution = df_contribution[(df_contribution['Entity'].isin(['OECD (Jones et al.)', 'Least developed countries (Jones et al.)']))]
+
+    brush = alt.selection_interval(encodings=['x'])
+    conditonal = alt.condition(brush, alt.value(1.0),alt.value(.25))
+    
+    # # Creating temporal heat map
+    # heatmap = alt.Chart(filt_contribution).mark_rect().encode(
+    #     x=alt.X('Year:O'),
+    #     y=alt.Y('Entity:N'),
+    #     color= alt.Color('Share of contribution to global warming:Q',scale=alt.Scale(scheme='reds'))
+    # ).add_params(brush).properties(height=200)
+    # st.altair_chart(heatmap)
+    
+
+    # Creating an area line chart    
+    Background = alt.Chart(filt_contribution).mark_area().encode(
+    x='Year:O',
+    y='Share of contribution to global warming:Q',
+    opacity = conditonal,
+    color='Entity').add_params(brush)
+
+    highlight = alt.Chart(filt_contribution).mark_area().encode(
+    x='Year:O',
+    y='Share of contribution to global warming:Q',
+    color='Entity'
+    ).transform_filter(brush)
+    
+    # selected = base.transform_filter(brush).mark_area(color='goldenrod')
+
+    # background + selected
+    chart = Background + highlight
+    st.subheader("Comparison of share of contribution to global warming - Developing versus Developed")
+    st.altair_chart(chart, use_container_width=True)
+
+
+
 
 # ───────────────────────────────────────────────────────────
 # 📋 DATA TAB
