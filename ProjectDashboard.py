@@ -251,7 +251,8 @@ with tab_charts:
     # AgLU = Agriculture and Land Use
 
     gas_cols = [c for c in df2.columns if c.startswith("Change in")]
-
+    
+    
     shortened_columns = {
         col: (
             "N2O_FF&I" if "nitrous oxide" in col and "fossil fuels" in col else
@@ -274,15 +275,20 @@ with tab_charts:
         var_name="series",
         value_name="Temp Change"
     )
+    
+    # Selection
+    selection = alt.selection_point(fields=['series'])
+    condition = alt.condition(selection,'series:N',alt.ColorValue('grey'))
 
     area = alt.Chart(gas_long).mark_area().encode(
         x="Year:O",
         y="Temp Change:Q",
-        color="series:N",
+        color=condition,
         order="series:N",
-        tooltip=['Year:O','Temp Change:Q']
-    ).properties(title=f"Warming by Gas and Source ({chart_country})")
-
+        tooltip=['Year:O','series:N','Temp Change:Q']
+    ).add_params(selection).properties(title=f"Warming by Gas and Source ({chart_country})")
+    
+    # Top five chart
     top5 = filtered_chart_2.groupby('Country')['TempChange'].mean().nlargest(5).reset_index()
     bar_chart = alt.Chart(top5).mark_bar().encode(
         x=alt.X("TempChange:Q", title="Avg Temp Change (°C)"),
