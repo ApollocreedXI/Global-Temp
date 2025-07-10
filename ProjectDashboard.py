@@ -100,6 +100,12 @@ filtered_chart_monthly = df_monthly[
     (df_monthly["Year"] <= dev_year_range[1])
 ].copy()
 
+filtered_chart_2 = df_long[
+    (df_long["Year"] >= dev_year_range[0]) &
+    (df_long["Year"] <= dev_year_range[1])
+].copy()
+
+
 # Dropdown filters - Monthly Average Temperature Change
 if chart_year != "All":
     filtered_chart_monthly = filtered_chart_monthly[filtered_chart_monthly["Year"] == int(chart_year)]
@@ -157,11 +163,12 @@ with tab_charts:
     
     if chart_country == "All":
         df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == 'World']
-        name = "World"
+        name = "All"
         
     else:
         df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == chart_country]
         name = chart_country
+        # Needed for streamlit to evaluate world correctly when selected
         df_monthly_filtered['Entity'].unique()=='World'
 
     # Creating a selection for the monthly line chart
@@ -276,6 +283,17 @@ with tab_charts:
         tooltip=['Year:O','Temp Change:Q']
     ).properties(title=f"Warming by Gas and Source ({chart_country})")
 
+    top5 = filtered_chart_2.groupby('Country')['TempChange'].mean().nlargest(5).reset_index()
+    bar_chart = alt.Chart(top5).mark_bar().encode(
+        x=alt.X("TempChange:Q", title="Avg Temp Change (°C)"),
+        y=alt.Y("Country:N", sort='-x'),
+        tooltip=["Country:N", "TempChange"]
+    ).properties(
+        width=700, height=600,
+        title="Top 5 Countries by Avg Temp Change"
+    )
+    
+
     
     # Plotting the charts
     st.altair_chart(
@@ -283,12 +301,17 @@ with tab_charts:
         use_container_width=True
     )
     # Plotting bar by itself as it can be of 'None' value raising an exception
-    if bar!= None:
-        st.altair_chart(bar,use_container_width=True)
+    show_decreasing_var = (dev_year_range[0] == year_min) and (dev_year_range[1] == year_max)
+    if bar!= None and show_decreasing_var:
+        st.altair_chart(alt.hconcat(bar_chart, bar).resolve_scale(color="independent"))
+        st.altair_chart(area,use_container_width=True)
+    else:
+        st.altair_chart(alt.hconcat(bar_chart, area.properties(height=600, width=600)).resolve_scale(color="independent"),use_container_width=True)
+
     
-    # Plotting area chart
-    st.altair_chart(area,use_container_width=True)               
-                    
+     
+                
+                     
 
 # ───────────────────────────────────────────────────────────
 # 🌐 DEVELOPED vs DEVELOPING TAB
@@ -451,8 +474,7 @@ with tab_dev:
         # combining the two charts
         chart = background + highlight
         st.altair_chart(alt.vconcat(heatmap,chart))
-
-          
+      
 
 
     # Creating a radio button to toggle between the two charts
