@@ -165,7 +165,7 @@ with tab_charts:
         df_monthly_filtered['Entity'].unique()=='World'
 
     # Creating a selection for the monthly line chart
-    sel_year = alt.selection_point(fields=["Year"], empty=False)
+    sel_year = alt.selection_point(fields=["Year"], empty=True)
     
     # Creating a new column to calculate the monthly average temperature change for each country
     yearly_averages = df_monthly_filtered.groupby(['Year','Entity'])["Monthly Average Temperature Change (°C)"].agg('mean').reset_index().rename(columns={"Monthly Average Temperature Change (°C)": "Yearly Average Temperature Change (°C)"})
@@ -177,7 +177,7 @@ with tab_charts:
         x=alt.X("Month_named:N", 
         sort=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], title='Month'), #axis=alt.Axis(labelAngle=0)),
         y="Monthly Average Temperature Change (°C):Q",
-        color=alt.Color("Yearly Average Temperature Change (°C)",scale=alt.Scale(scheme='reds'), legend=alt.Legend(title="Hotter Years")),
+        color=alt.Color("Yearly Average Temperature Change (°C)",scale=alt.Scale(scheme='reds'), legend=alt.Legend(title="Yearly Average Temperature Change(°C)")),
 
         opacity=alt.condition(sel_year, alt.value(1), alt.value(0.20)),
         tooltip=["Year", "Monthly Average Temperature Change (°C)"]
