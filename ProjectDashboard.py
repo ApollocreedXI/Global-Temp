@@ -275,17 +275,27 @@ with tab_charts:
         var_name="series",
         value_name="Temp Change"
     )
+
+    label_map = {
+        "CO2_FF&I": "CO₂ (Fossil Fuels & Industry)",
+        "CO2_AgLU": "CO₂ (Agriculture & Land Use)",
+        "CH4_FF&I": "CH₄ (Fossil Fuels & Industry)",
+        "CH4_AgLU": "CH₄ (Agriculture & Land Use)",
+        "N2O_FF&I": "N₂O (Fossil Fuels & Industry)",
+        "N2O_AgLU": "N₂O (Agriculture & Land Use)"
+    }
+    gas_long["series_label"] = gas_long["series"].map(label_map)
     
     # Selection
     selection = alt.selection_point(fields=['series'])
-    condition = alt.condition(selection,'series:N',alt.ColorValue('grey'))
+    condition = alt.condition(selection, 'series_label:N', alt.ColorValue('grey'))
 
     area = alt.Chart(gas_long).mark_area().encode(
         x="Year:O",
         y="Temp Change:Q",
         color=condition,
-        order="series:N",
-        tooltip=['Year:O','series:N','Temp Change:Q']
+        order="series_label:N",
+        tooltip=['Year:O','series_label:N','Temp Change:Q']
     ).add_params(selection).properties(title=f"Warming by Gas and Source ({chart_country})")
     
     # Top ten chart
