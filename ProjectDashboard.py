@@ -179,7 +179,6 @@ with tab_charts:
     
     # Merging
     df_monthly_filtered = pd.merge(df_monthly_filtered, yearly_averages, on=['Year','Entity'], how='left')
-
     base = alt.Chart(df_monthly_filtered).encode(
         x=alt.X("Month_named:N", 
         sort=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], title='Month'), #axis=alt.Axis(labelAngle=0)),
