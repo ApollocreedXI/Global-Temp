@@ -172,26 +172,37 @@ with tab_charts:
         df_monthly_filtered['Entity'].unique()=='World'
 
     # Creating a selection for the monthly line chart
-    sel_year = alt.selection_point(fields=["Year"], empty=True)
+    sel_year = alt.selection_point(on='pointerover',fields=['Year'], nearest=True, empty=True)
     
-    # Creating a new column to calculate the monthly average temperature change for each country
+    # Creating a new column to calculate the yearly average temperature change for each country
     yearly_averages = df_monthly_filtered.groupby(['Year','Entity'])["Monthly Average Temperature Change (°C)"].agg('mean').reset_index().rename(columns={"Monthly Average Temperature Change (°C)": "Yearly Average Temperature Change (°C)"})
     
     # Merging
     df_monthly_filtered = pd.merge(df_monthly_filtered, yearly_averages, on=['Year','Entity'], how='left')
 
-    monthly_line = alt.Chart(df_monthly_filtered).mark_line().encode(
+    base = alt.Chart(df_monthly_filtered).encode(
         x=alt.X("Month_named:N", 
         sort=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], title='Month'), #axis=alt.Axis(labelAngle=0)),
-        y="Monthly Average Temperature Change (°C):Q",
+        y="Monthly Average Temperature Change (°C):Q")
+    
+    points = base.mark_circle().encode(
+        opacity=alt.value(0),
+        tooltip=["Year", "Monthly Average Temperature Change (°C)"]
+    ).add_params(
+        sel_year
+    )
+    lines = base.mark_line().encode(
         color=alt.Color("Yearly Average Temperature Change (°C)",scale=alt.Scale(scheme='reds'), legend=alt.Legend(title="Yearly Average Temperature Change(°C)")),
-
         opacity=alt.condition(sel_year, alt.value(1), alt.value(0.20)),
         tooltip=["Year", "Monthly Average Temperature Change (°C)"]
     ).properties(
         width=750, height=400,
-        title=f"Monthly Average Temperature Change – {name}"
-    ).interactive().add_params(sel_year)
+        title=f"Monthly Average Temperature Change – {name}",
+    ).interactive()
+
+    monthly_line = points + lines
+
+
 
 
     # 2️⃣ Bar plot: countries with decreasing variability
@@ -296,11 +307,15 @@ with tab_charts:
         color=condition,
         order="series_label:N",
         tooltip=['Year:O','series_label:N','Temp Change:Q']
-    ).add_params(selection).properties(title=f"Warming by Gas and Source ({chart_country})")
+    ).add_params(selection).properties(title=f"Warming by Gas and Source ({chart_country})",autosize=alt.AutoSizeParams(
+            type='fit-x',
+            contains='padding',
+            resize=True
+        ))
     
     # Top ten chart
-    top5 = filtered_chart_2.groupby('Country')['TempChange'].mean().nlargest(10).reset_index()
-    bar_chart = alt.Chart(top5).mark_circle(size=100).encode(
+    top10 = filtered_chart_2.groupby('Country')['TempChange'].mean().nlargest(10).reset_index()
+    bar_chart = alt.Chart(top10).mark_circle(size=100).encode(
         x=alt.X("TempChange:Q", title="Avg Temp Change (°C)").axis(alt.Axis(grid=False)),
         y=alt.Y("Country:N", sort='-x').axis(alt.Axis(grid=True)),
         tooltip=["Country:N", "TempChange"]
@@ -313,7 +328,11 @@ with tab_charts:
     
     # Plotting the charts
     st.altair_chart(
-        alt.vconcat(scatter, monthly_line).resolve_scale(color="independent"),
+        alt.vconcat(scatter, monthly_line).properties(autosize=alt.AutoSizeParams(
+            type='fit-x',
+            contains='padding',
+            resize=True
+        )).resolve_scale(color="independent"),
         use_container_width=True
     )
     # Plotting bar by itself as it can be of 'None' value raising an exception
@@ -322,7 +341,7 @@ with tab_charts:
         st.altair_chart(alt.hconcat(bar_chart, bar).resolve_scale(color="independent"))
         st.altair_chart(area,use_container_width=True)
     else:
-        st.altair_chart(alt.hconcat(bar_chart, area.properties(height=600, width=600)).resolve_scale(color="independent"),use_container_width=True)
+        st.altair_chart(area, use_container_width=True)
 
     
      
