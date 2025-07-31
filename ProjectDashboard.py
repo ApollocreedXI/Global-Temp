@@ -11,8 +11,6 @@ st.set_page_config(page_title="Global Temperature Dashboard",
                    layout="wide")
 st.title("🌍 Global Temperature Story  🌡️")
 
-
-
 # ─── Data load & reshape ───────────────────────────────────
 df = pd.read_csv(
     "Indicator_3_1_Climate_Indicators_Annual_Mean_Global_Surface_Temperature_577579683071085080.csv"
@@ -169,7 +167,7 @@ with tab_charts:
         df_monthly_filtered = filtered_chart_monthly[filtered_chart_monthly["Entity"] == chart_country]
         name = chart_country
         # Needed for streamlit to evaluate world correctly when selected
-        df_monthly_filtered['Entity'].unique()=='World'
+        _ = df_monthly_filtered['Entity'].unique()=='World'
 
     # Creating a selection for the monthly line chart
     sel_year = alt.selection_point(on='pointerover',fields=['Year'], nearest=True, empty=True)
@@ -245,8 +243,6 @@ with tab_charts:
     else:
         bar=None
     
-
-
     # Stacked area chart for global warming by gas and source (world)
     # world = df2[df2["Code"] == "OWID_WRL"].copy()
     # world.drop(columns=["Entity", "Code"], inplace=True)
@@ -261,7 +257,6 @@ with tab_charts:
     # AgLU = Agriculture and Land Use
 
     gas_cols = [c for c in df2.columns if c.startswith("Change in")]
-    
     
     shortened_columns = {
         col: (
@@ -294,18 +289,18 @@ with tab_charts:
         "N2O_FF&I": "N₂O (Fossil Fuels & Industry)",
         "N2O_AgLU": "N₂O (Agriculture & Land Use)"
     }
-    gas_long["series_label"] = gas_long["series"].map(label_map)
+    gas_long["Legend"] = gas_long["series"].map(label_map)
     
     # Selection
-    selection = alt.selection_point(fields=['series'])
-    condition = alt.condition(selection, 'series_label:N', alt.ColorValue('grey'))
+    selection = alt.selection_point(fields=['Legend'])
+    condition = alt.condition(selection, 'Legend:N', alt.ColorValue('grey'))
 
     area = alt.Chart(gas_long).mark_area().encode(
         x="Year:O",
         y="Temp Change:Q",
         color=condition,
-        order="series_label:N",
-        tooltip=['Year:O','series_label:N','Temp Change:Q']
+        order="Legend:N",
+        tooltip=['Year:O','Legend:N','Temp Change:Q']
     ).add_params(selection).properties(title=f"Warming by Gas and Source ({chart_country})",autosize=alt.AutoSizeParams(
             type='fit-x',
             contains='padding',
@@ -315,16 +310,16 @@ with tab_charts:
     # Top ten chart
     top10 = filtered_chart_2.groupby('Country')['TempChange'].mean().nlargest(10).reset_index()
     bar_chart = alt.Chart(top10).mark_circle(size=100).encode(
-        x=alt.X("TempChange:Q", title="Avg Temp Change (°C)").axis(alt.Axis(grid=False)),
+        x=alt.X("TempChange:Q", title="Avg Temp Change").axis(alt.Axis(grid=False)),
         y=alt.Y("Country:N", sort='-x').axis(alt.Axis(grid=True)),
         tooltip=["Country:N", "TempChange"]
     ).properties(
         width=400, height=600,
-        title="Top 10 Countries by Avg Temp Change"
+        title="Top 10 Countries by Average Temperature Change"
     )
     
+    st.write("Explore the impact of global warming by seeing how surface temperatures have changed over time! For each year, the mean surface temperature change (in °C) is measured relative to the average over a baseline period (1951-1980). Feel free to select a country from the sidebar to see its specific data, or click on a data point in the scatterplot.")
 
-    
     # Plotting the charts
     st.altair_chart(
         alt.vconcat(scatter, monthly_line).properties(autosize=alt.AutoSizeParams(
@@ -336,11 +331,24 @@ with tab_charts:
     )
     # Plotting bar by itself as it can be of 'None' value raising an exception
     show_decreasing_var = (dev_year_range[0] == year_min) and (dev_year_range[1] == year_max)
-    if bar!= None and show_decreasing_var:
+    if bar != None and show_decreasing_var:
         st.altair_chart(alt.hconcat(bar_chart, bar).resolve_scale(color="independent"))
+        st.markdown(
+        "#### How do different gases and sources contribute to global warming?\n"
+        "Here, you can see how different gases and sources contribute to global warming. The leading gases that contribute to global warming are carbon dioxide (CO₂), methane (CH₄), and nitrous oxide (N₂O), and the leading sources are fossil fuels and industry (FF&I) and agriculture and land use (AgLU). You can highlight a section of the chart to see the contribution of a particular gas and source over time.\n"
+        )
+        st.markdown('''
+        - The most prevalent contributor to global warming is **carbon dioxide** from **fossil fuels and industry**. 
+        - However, steps such as transitioning to renewable energy sources, electrification of transportation, and energy-efficient appliances can significantly reduce the impact of CO₂ emissions.
+        ''')
         st.altair_chart(area,use_container_width=True)
     else:
+        st.markdown(
+        "#### How do different gases and sources contribute to global warming?\n"
+        "Here, you can see how different gases and sources contribute to global warming. The leading gases that contribute to global warming are carbon dioxide (CO₂), methane (CH₄), and nitrous oxide (N₂O), and the leading sources are fossil fuels and industry (FF&I) and agriculture and land use (AgLU). You can highlight a section of the chart to see the contribution of a particular gas and source over time.\n"
+        )
         st.altair_chart(area, use_container_width=True)
+    
 
     
      
